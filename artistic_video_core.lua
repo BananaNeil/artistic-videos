@@ -126,7 +126,7 @@ function runOptimization(params, net, content_losses, style_losses, temporal_los
   end
   
   end_time = os.time()
-  elapsed_time = os.difftime(end_time-start_time)
+  elapsed_time = os.difftime(end_time, start_time)
   print("Running time: " .. elapsed_time .. "s")
   
   print_end(num_calls)
