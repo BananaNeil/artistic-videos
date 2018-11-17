@@ -610,7 +610,11 @@ function getStyleImages(params)
     -- Scale the style image so that it's area equals the area of the content image multiplied by the style scale.
     local img_scale = math.sqrt(firstContentImg:size(2) * firstContentImg:size(3) / (img:size(3) * img:size(2)))
         * params.style_scale
-    img = image.scale(img, img:size(3) * img_scale, img:size(2) * img_scale, 'bilinear')
+
+    local width = math.floor(img:size(3) * img_scale - 0.5)
+    local height = math.floor(img:size(2) * img_scale - 0.5)
+    print("Image width x height:" .. width .. " x " .. height)
+    img = image.scale(img, width, height, 'bilinear')
     print("Style image size: " .. img:size(3) .. " x " .. img:size(2))
     local img_caffe = preprocess(img):float()
     table.insert(style_images_caffe, img_caffe)
