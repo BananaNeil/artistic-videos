@@ -26,7 +26,7 @@ function createOutputFile
   echo "Creating video from video sequence"
   echo ""
   stylename=$(basename "${style_image%.*}")
-  $FFMPEG -i ./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-%04d.$image_type -loglevel 'trace'  -pix_fmt yuv420p -framerate $framerate Out/${filename}-stylized-$stylename.$extension
+  $FFMPEG -i ./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-%04d.$image_type -loglevel 'trace'  -pix_fmt yuv420p -framerate $framerate Out/${filename}-stylized-$stylename-$(date +%s).$extension
   echo ""
 }
 
