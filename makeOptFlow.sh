@@ -52,12 +52,16 @@ i=$[$startFrame]
 
 mkdir -p "${folderName}"
 
+progressDir=$(echo $filePattern | sed 's/[^\/]*$//g')
+last=$(exec ls $progressDir | sed 's/[^0-9]*\([0-9]\+\).*/\1/g'  | sort -n | tail -1)
+
 while [ $loopWork = 1 ]; do
   for step in "${stepSize[@]}"; do
     j=$[ $i - $step ]
     file1=$(printf "$filePattern" "$i")
     file2=$(printf "$filePattern" "$j")
 
+    echo -ne "Making Opt Flow $i/$last       \r"
     if [ -a $file2 ] && [ -a $file1 ]; then
       if [ ! -f ${folderName}/forward_${j}_${i}.flo ]; then
         eval $flowCommandLine "$file2" "$file1" "${folderName}/forward_${j}_${i}.flo" ${opt_res} &
