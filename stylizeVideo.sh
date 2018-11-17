@@ -17,7 +17,7 @@ function createOutputFile
   # Create video from output images.
   mkdir -p Out
 
-  if [ ! -f "./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-0001.png" ] || [ "$performStarted" -ne "1" ];
+  if [ ! -f "./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-0001.$image_type" ] || [ "$performStarted" -ne "1" ];
   then
     exit 0
   fi
@@ -26,7 +26,7 @@ function createOutputFile
   echo "Creating video from video sequence"
   echo ""
   stylename=$(basename "${style_image%.*}")
-  $FFMPEG -i ./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-%04d.png -loglevel 'error' -framerate $framerate Out/${filename}-stylized-$stylename.$extension
+  $FFMPEG -i ./inProgress/${filename}/${filename}_[${num_iterations}]_$resolution/out-%04d.$image_type -loglevel 'trace' -framerate $framerate Out/${filename}-stylized-$stylename.$extension
   echo ""
 }
 
@@ -42,9 +42,10 @@ function convertToSeq {
   framerate=${framerate:-30}
 
   if [ $resolution == "original" ]; then
-    $FFMPEG -i $filepath -loglevel 'error' inProgress/${filename}/frame_%04d.png &
+    $FFMPEG -i $filepath -loglevel 'error' inProgress/${filename}/frame_%04d.$image_type &
   else
-    $FFMPEG -i $filepath -vf scale=$resolution:-1 -loglevel 'error' inProgress/${filename}/frame_%04d.png &
+    echo "$FFMPEG -i $filepath -vf scale=$resolution:-1 -loglevel 'error' inProgress/${filename}/frame_%04d.$image_type"
+    $FFMPEG -i $filepath -vf scale=$resolution:-1 -loglevel 'error' inProgress/${filename}/frame_%04d.$image_type &
   fi
 }
 
@@ -85,6 +86,7 @@ pooling=1
 init=1
 need_flow=1
 opt_res=1
+image_type=png
 flow_relative_indices=1,15,40
 temporal_weight=1e3
 continue_with=1
@@ -269,6 +271,10 @@ read -p "What init do you want? random - 0, image - 1 \
 [$init] $cr > " readtmp 
 if [[ ! -z "$readtmp" ]]; then init=$readtmp; unset readtmp; fi;
 
+read -p "What image type do you wan to use while processing?
+[$image_type] $cr > " readtmp 
+if [[ ! -z "$readtmp" ]]; then image_type=$readtmp; unset readtmp; fi;
+
 
 if [ "$init" == "1" ]; then
   init=image
@@ -317,7 +323,7 @@ yes | cp -rf $laststate ./inProgress/${filename}/${filename}_[${num_iterations}]
 # find last file in out directory
 dir=inProgress/${filename}/${filename}_[${num_iterations}]_${resolution}
 unset -v latest
-for file in "$dir"/*.png; do
+for file in "$dir"/*.$image_type; do
   [[ $file -nt $latest ]] && latest=$file
 done
 lastfoundindex=`echo $latest | grep -o '[0-9:]*' | tail -1 | sed 's/^0*//'`
@@ -344,8 +350,9 @@ fi
 if [ "$need_flow" == "1" ]; then
   echo ""
   echo "Computing optical flow in low-priority in background..."
+  echo "nice bash makeOptFlow.sh ./inProgress/${filename}/frame_%04d.$image_type ./inProgress/${filename}/flow_$resolution 1 $flow_relative_indices $opt_res"
   echo 
-  nice bash makeOptFlow.sh ./inProgress/${filename}/frame_%04d.png ./inProgress/${filename}/flow_$resolution 1 $flow_relative_indices $opt_res &
+  nice bash makeOptFlow.sh ./inProgress/${filename}/frame_%04d.$image_type ./inProgress/${filename}/flow_$resolution 1 $flow_relative_indices $opt_res &
 fi
 
 echo ""
@@ -359,7 +366,7 @@ echo ""
 performStarted=1
 
 th artistic_video.lua \
--content_pattern inProgress/${filename}/frame_%04d.png \
+-content_pattern inProgress/${filename}/frame_%04d.$image_type \
 -flow_pattern inProgress/${filename}/flow_${resolution}/backward_[%d]_{%d}.flo \
 -flowWeight_pattern inProgress/${filename}/flow_${resolution}/reliable_[%d]_{%d}.pgm \
 -style_weight $style_weight \
