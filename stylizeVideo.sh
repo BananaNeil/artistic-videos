@@ -189,13 +189,14 @@ if [ "$filepath" == "$1" ] && [ "$style_image" = "$2" ]; then
   echo ""
   read -p "Do you want to load previously entered parametres for \"$(basename "${1%.*}")\" and \"$(basename "${2%.*}")\"?  0 - no, 1 - yes, 2 - yes, jump to processing now. [0] $cr > " previousload
 previousload=${previousload:-0}
+  cat $laststate  | grep ^[a-z] > $laststate.tmp
   if [ "$previousload" == "2" ]; then
-    source $laststate
+    source $laststate.tmp
     makeDirs
     jumpto startComputing
   fi
   if [ "$previousload" == "1" ]; then
-    source $laststate
+    source $laststate.tmp
   fi
 fi  
 
