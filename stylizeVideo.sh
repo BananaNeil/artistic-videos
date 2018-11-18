@@ -331,22 +331,16 @@ done
 lastfoundindex=`echo $latest | grep -o '[0-9:]*' | tail -1 | sed 's/^0*//'`
 lastfoundindex=${lastfoundindex:-0}
 
+continue_with=$[$lastfoundindex+1]
+
 # if last file is found
 if [ "$lastfoundindex" -ne 0 ]; then
   echo ""
-  echo Found, that previous calculations stopped at frame $lastfoundindex
-  read -p "Do you want to continue from last found state? 1 - yes, 0 - no \
+  echo Found that previous calculations stopped at frame $lastfoundindex
+  read -p "What frame would you like to start at? \
 [$continue_with] $cr > " readtmp 
   if [[ ! -z "$readtmp" ]]; then continue_with=$readtmp; unset readtmp; fi;
-  if [ "$continue_with" == 0 ]; then
-    continue_with=1
-  else 
-    continue_with=$[$lastfoundindex+1]
-  fi
-else
-  continue_with=1
 fi  
-
 
 
 if [ "$need_flow" == "1" ]; then
