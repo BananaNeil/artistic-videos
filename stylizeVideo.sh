@@ -233,11 +233,6 @@ fi
 convertToSeq $1
 
 echo ""
-  read -p "On which gpu do you want to compute? -1 for CPU. \
-[$gpu] $cr > "  readtmp 
-if [[ ! -z "$readtmp" ]]; then gpu=$readtmp; unset readtmp; fi;
-
-echo ""
 read -p "How much do you want to weight the style reconstruction term? \
 [$style_weight] $cr > " readtmp
 if [[ ! -z "$readtmp" ]]; then style_weight=$readtmp; unset readtmp; fi;
@@ -314,6 +309,11 @@ unset cr
 unset cmd
 unset label
 unset readtmp
+
+echo ""
+  read -p "On which gpu do you want to compute? -1 for CPU. \
+[$gpu] $cr > "  readtmp 
+if [[ ! -z "$readtmp" ]]; then gpu=$readtmp; unset readtmp; fi;
 
 compgen -v | while read var; do echo "$var"="\"${!var}\"" ; done | sed '/^[A-Z[:punct:]]/d' > $laststate
 
