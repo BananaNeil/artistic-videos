@@ -12,6 +12,8 @@ require 'image'
     12-end  data (width*height*2*4 bytes total)
 --]]
 local function flowFileLoader_load(fileName)
+  print("reading file:")
+  print(fileName)
   local flowFile = torch.DiskFile(fileName, 'r')
   flowFile:binary()
   flowFile:readFloat()
