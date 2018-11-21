@@ -3,6 +3,7 @@
 
 outfiles=$(find ~/artistic-videos/inProgress/ -name 'out*.png' | sed 's/[a-z0-9\.\-]*$//g' | uniq)
 
+echo $(date)
 
 mkdir /tmp/previews
 rm -r /tmp/previews/preview-*.mov
