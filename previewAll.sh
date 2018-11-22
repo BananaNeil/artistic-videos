@@ -8,6 +8,7 @@ echo $(date)
 mkdir /tmp/previews
 rm -r /tmp/previews/preview-*.mov
 i=1
+nvidia-smi |grep "%\|="
 for outDir in $outfiles; do
   echo $outDir
   frames=$(exec ls $outDir | sed 's/[^0-9]*\([0-9]\+\).*/\1/g'  | sort -n | tail -1)
