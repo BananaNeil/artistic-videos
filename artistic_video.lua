@@ -167,97 +167,110 @@ local function main(params)
           table.insert(J, frameIdx - tonumber(flow_relative_indices_split[i]))
         end
       end
+      print(string.format('Reading flow file "%s".', flowFileName))
+      print(string.format('use_flow_every "%s"', params.use_flow_every))
       if params.use_flow_every > 0 then
         for prevIndex=frameIdx - params.use_flow_every, params.start_number, -1 * params.use_flow_every do
           if not tabl_contains(J, prevIndex) then
             table.insert(J, prevIndex)
           end
         end
+        -- Sort table descending, usefull to compute the long-term weights
+        table.sort(J, function(a,b) return a>b end)
+        -- Read the optical flow(s) and warp the previous image(s)
+        for j=1, #J do
+          local prevIndex = J[j]
+          local flowFileName = getFormatedFlowFileName(params.flow_pattern, math.abs(prevIndex), math.abs(frameIdx))
+          waitForFile(flowFileName, timer)
+          print(string.format('Reading flow file "%s".', flowFileName))
+          local flow = flowFile.load(flowFileName)
+          local fileName = build_OutFilename(params, math.abs(prevIndex - params.start_number + 1), -1)
+          local imgWarped = warpImage(image.load(fileName, 3), flow)
+          imgWarped = preprocess(imgWarped):float()
+          imgWarped = MaybePutOnGPU(imgWarped, params)
+          table.insert(imgsWarped, imgWarped)
+        end
       end
-      -- Sort table descending, usefull to compute the long-term weights
-      table.sort(J, function(a,b) return a>b end)
-      -- Read the optical flow(s) and warp the previous image(s)
-      for j=1, #J do
-        local prevIndex = J[j]
-        local flowFileName = getFormatedFlowFileName(params.flow_pattern, math.abs(prevIndex), math.abs(frameIdx))
-        waitForFile(flowFileName, timer)
-        print(string.format('Reading flow file "%s".', flowFileName))
-        local flow = flowFile.load(flowFileName)
-        local fileName = build_OutFilename(params, math.abs(prevIndex - params.start_number + 1), -1)
-        local imgWarped = warpImage(image.load(fileName, 3), flow)
-        imgWarped = preprocess(imgWarped):float()
-        imgWarped = MaybePutOnGPU(imgWarped, params)
-        table.insert(imgsWarped, imgWarped)
-      end
+
+        -- Add content and temporal loss for this iteration. Style loss is already included in the net.
+        for i=1, #losses_indices do
+          print(string.format('for... %s', losses_indices[i]))
+          print(string.format('and... %s', losses_type[i]))
+          if losses_type[i] == 'content'  then
+            local loss_module = getContentLossModuleForLayer(net,
+              losses_indices[i] + additional_layers, content_image, params)
+            net:insert(loss_module, losses_indices[i] + additional_layers)
+            table.insert(content_losses, loss_module)
+            additional_layers = additional_layers + 1
+          -- elseif losses_type[i] == 'prevPlusFlow' then
+          --   for j=1, #J do
+          --     local loss_module = getWeightedContentLossModuleForLayer(net,
+          --       losses_indices[i] + additional_layers, imgsWarped[j],
+          --       params, nil)
+          --     net:insert(loss_module, losses_indices[i] + additional_layers)
+          --     table.insert(temporal_losses, loss_module)
+          --     additional_layers = additional_layers + 1
+          --   end
+          -- elseif losses_type[i] == 'prevPlusFlowWeighted' then
+          --   local flowWeightsTabl = {}
+          --   -- Read all flow weights
+          --   for j=1, #J do
+          --     local weightsFileName = getFormatedFlowFileName(params.flowWeight_pattern, J[j], math.abs(frameIdx))
+          --     waitForFile(weightsFileName, timer)
+          --     print(string.format('Reading flowWeights file "%s".', weightsFileName))
+          --     table.insert(flowWeightsTabl, image.load(weightsFileName):float())
+          --   end
+          --   -- Preprocess flow weights, calculate long-term weights
+          --   processFlowWeights(flowWeightsTabl, params.combine_flowWeights_method, params.invert_flowWeights)
+          --   -- Create loss modules, one for each previous frame warped
+          --   for j=1, #J do
+          --     local flowWeights = flowWeightsTabl[j]
+          --     flowWeights = flowWeights:expand(3, flowWeights:size(2), flowWeights:size(3))
+          --     flowWeights = MaybePutOnGPU(flowWeights, params)
+          --     local loss_module = getWeightedContentLossModuleForLayer(net,
+          --       losses_indices[i] + additional_layers, imgsWarped[j],
+          --       params, flowWeights)
+          --     net:insert(loss_module, losses_indices[i] + additional_layers)
+          --     table.insert(temporal_losses, loss_module)
+          --     additional_layers = additional_layers + 1
+          --   end
+          -- end
+        end
+      -- else
+      --   local loss_module = getContentLossModuleForLayer(net,
+      --     'content' + additional_layers, content_image, params)
+      --   net:insert(loss_module, 'content' + additional_layers)
+      --   table.insert(content_losses, loss_module)
+      --   additional_layers = additional_layers + 1
+      -- end
     end
 
-    -- Add content and temporal loss for this iteration. Style loss is already included in the net.
-    for i=1, #losses_indices do
-      if losses_type[i] == 'content'  then
-        local loss_module = getContentLossModuleForLayer(net,
-          losses_indices[i] + additional_layers, content_image, params)
-        net:insert(loss_module, losses_indices[i] + additional_layers)
-        table.insert(content_losses, loss_module)
-        additional_layers = additional_layers + 1
-      elseif losses_type[i] == 'prevPlusFlow' and frameIdx > params.start_number then
-        for j=1, #J do
-          local loss_module = getWeightedContentLossModuleForLayer(net,
-            losses_indices[i] + additional_layers, imgsWarped[j],
-            params, nil)
-          net:insert(loss_module, losses_indices[i] + additional_layers)
-          table.insert(temporal_losses, loss_module)
-          additional_layers = additional_layers + 1
-        end
-      elseif losses_type[i] == 'prevPlusFlowWeighted' and frameIdx > params.start_number then
-        local flowWeightsTabl = {}
-        -- Read all flow weights
-        for j=1, #J do
-          local weightsFileName = getFormatedFlowFileName(params.flowWeight_pattern, J[j], math.abs(frameIdx))
-          waitForFile(weightsFileName, timer)
-          print(string.format('Reading flowWeights file "%s".', weightsFileName))
-          table.insert(flowWeightsTabl, image.load(weightsFileName):float())
-        end
-        -- Preprocess flow weights, calculate long-term weights
-        processFlowWeights(flowWeightsTabl, params.combine_flowWeights_method, params.invert_flowWeights)
-        -- Create loss modules, one for each previous frame warped
-        for j=1, #J do
-          local flowWeights = flowWeightsTabl[j]
-          flowWeights = flowWeights:expand(3, flowWeights:size(2), flowWeights:size(3))
-          flowWeights = MaybePutOnGPU(flowWeights, params)
-          local loss_module = getWeightedContentLossModuleForLayer(net,
-            losses_indices[i] + additional_layers, imgsWarped[j],
-            params, flowWeights)
-          net:insert(loss_module, losses_indices[i] + additional_layers)
-          table.insert(temporal_losses, loss_module)
-          additional_layers = additional_layers + 1
-        end
-      end
-    end
+  end
 
     -- Initialization
     local img = nil
-    if init == 'random' then
-      img = torch.randn(content_image:size()):float():mul(0.001)
-    elseif init == 'image' then
+    -- if init == 'random' then
+    --   img = torch.randn(content_image:size()):float():mul(0.001)
+    -- elseif init == 'image' then
       img = content_image:clone():float()
-    elseif init == 'prevWarped' and frameIdx > params.start_number then
-      local flowFileName = getFormatedFlowFileName(params.flow_pattern, math.abs(frameIdx - 1), math.abs(frameIdx))
-      waitForFile(flowFileName, timer)
-      print(string.format('Reading flow file "%s".', flowFileName))
-      local flow = flowFile.load(flowFileName)
-      local fileName = build_OutFilename(params, math.abs(frameIdx - params.start_number), -1)
-      img = warpImage(image.load(fileName, 3), flow)
-      img = preprocess(img):float()
-    elseif init == 'prev' and frameIdx > params.start_number then
-      local fileName = build_OutFilename(params, math.abs(frameIdx - params.start_number), -1)
-      img = image.load(fileName, 3)
-      img = preprocess(img):float()
-    elseif init == 'first' then
-      img = firstImg:clone():float()
-    else
-      print('ERROR: Invalid initialization method.')
-      os.exit()
-    end
+    -- elseif init == 'prevWarped' and frameIdx > params.start_number then
+    --   local flowFileName = getFormatedFlowFileName(params.flow_pattern, math.abs(frameIdx - 1), math.abs(frameIdx))
+    --   waitForFile(flowFileName, timer)
+    --   print(string.format('Reading flow file "%s".', flowFileName))
+    --   local flow = flowFile.load(flowFileName)
+    --   local fileName = build_OutFilename(params, math.abs(frameIdx - params.start_number), -1)
+    --   img = warpImage(image.load(fileName, 3), flow)
+    --   img = preprocess(img):float()
+    -- elseif init == 'prev' and frameIdx > params.start_number then
+    --   local fileName = build_OutFilename(params, math.abs(frameIdx - params.start_number), -1)
+    --   img = image.load(fileName, 3)
+    --   img = preprocess(img):float()
+    -- elseif init == 'first' then
+    --   img = firstImg:clone():float()
+    -- else
+    --   print('ERROR: Invalid initialization method.')
+    --   os.exit()
+    -- end
     img = MaybePutOnGPU(img, params)
     if params.save_init then
       save_image(img,
@@ -276,10 +289,10 @@ local function main(params)
     for i=#losses_indices, 1, -1 do
       if frameIdx > params.start_number or losses_type[i] == 'content' then
         if losses_type[i] == 'prevPlusFlowWeighted' or losses_type[i] == 'prevPlusFlow' then
-          for j=1, #J do
-            additional_layers = additional_layers - 1
-            net:remove(losses_indices[i] + additional_layers)
-          end
+          -- for j=1, #J do
+          --   additional_layers = additional_layers - 1
+          --   net:remove(losses_indices[i] + additional_layers)
+          -- end
         else
           additional_layers = additional_layers - 1
           net:remove(losses_indices[i] + additional_layers)
